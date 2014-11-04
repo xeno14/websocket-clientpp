@@ -25,8 +25,8 @@ namespace websocket {
 namespace internal {
 
 bool parse_url(const std::string& url, std::string* host, std::string* path,
-              int* port) {
-  // TODO: use regex
+               int* port) {
+  // TODO: Use regex or external lib
   if (url.find("ws://") == std::string::npos) {
     return false;
   }
@@ -73,10 +73,6 @@ bool check_header(int sockfd) {
   if (read_line(sockfd).find("HTTP/1.1 101") != 0) {
     return false;
   }
-  // if ((line = read_line(sockfd)) !=
-  //     "HTTP/1.1 101 Web Socket Protocol Handshake\r\n") {
-  //   return false;
-  // }
   while ((line = read_line(sockfd).c_str()) != "\r\n") {
     if (line.empty()) return false;
   }
@@ -110,7 +106,7 @@ int establish_connection(const int sockfd, const std::string& host,
   return check_header(sockfd);
 }
 
-int connect_form_hostname(const std::string& hostname, int port) {
+int connect_from_hostname(const std::string& hostname, int port) {
   struct addrinfo hints;
   struct addrinfo* result;
   int ret;
@@ -151,18 +147,40 @@ int send(int sockfd, uint8_t* data, const std::string& message) {
   return ::send(sockfd, data, end - data, 0);
 }
 
-std::string recv(int sockfd, uint8_t* data) {
-  // TODO: error handling
+int recv_timeout(int sockfd, uint8_t* data, uint64_t size, int timeout) {
+  fd_set rfds;
+  FD_ZERO(&rfds);
+  FD_SET(sockfd, &rfds);
+
+  if (timeout > 0) {
+    timeval tv = {timeout / 1000, (timeout % 1000) * 1000};
+    ::select(sockfd + 1, &rfds, NULL, NULL, &tv);
+  } else {
+    ::select(sockfd + 1, &rfds, NULL, NULL, NULL);
+  }
+
+  if (FD_ISSET(sockfd, &rfds)) {
+    return ::recv(sockfd, data, size, 0);
+  }
+  return -1;  // TODO: throw??
+}
+
+std::string recv(int sockfd, uint8_t* data, int timeout) {
   Protocol protocol;
 
-  ::recv(sockfd, data, 2, 0);
+  if (recv_timeout(sockfd, data, 2, timeout) == -1) {
+    return "";  // TODO: throw?
+  }
   protocol.decode_header(data);
 
-  ::recv(sockfd, data, protocol.expandable_length(), 0);
+  if (recv_timeout(sockfd, data, protocol.expandable_length(), timeout) == -1) {
+    return "";
+  }
   protocol.decode_expandables(data);
 
-  ::recv(sockfd, data, protocol.length, 0);
-
+  if (recv_timeout(sockfd, data, protocol.length, timeout) == -1) {
+    return "";
+  }
   std::string response(protocol.length, 0);
   protocol.decode_payload(data, response.begin());
 

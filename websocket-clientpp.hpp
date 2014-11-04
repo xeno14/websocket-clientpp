@@ -6,7 +6,6 @@
 #include <string>
 #include <vector>
 
-
 namespace websocket {
 
 namespace internal {
@@ -17,17 +16,17 @@ namespace internal {
  * @return
  * true: when parse successed
  * false: parse error
- *  
+ *
  * @example
  *  ws://host:1000 -> "host", "", 1000
  *  ws://host/foo  -> "host", "foo", 80
  *  ws://host/foo/ -> "host", "foo", 80
  */
 bool parse_url(const std::string& url, std::string* host, std::string* path,
-              int* port);
+               int* port);
 
 /**
- * Call recv until recieve "\r\n". Returned value contains "\r\n". 
+ * Call recv until recieve "\r\n". Returned value contains "\r\n".
  */
 std::string read_line(int sockfd);
 
@@ -51,7 +50,7 @@ int establish_connection(const int sockfd, const std::string& host,
  *  -1: invalid sockfd (failed to connect)
  *  -2: failed at getaddrinfo
  */
-int connect_form_hostname(const std::string& hostname, int port);
+int connect_from_hostname(const std::string& hostname, int port);
 
 /**
  * Send message via socket.
@@ -61,9 +60,14 @@ int connect_form_hostname(const std::string& hostname, int port);
 int send(int sockfd, uint8_t* data, const std::string& message);
 
 /**
+ * Receive data of specific size with timeout.
+ */
+int recv_timeout(int sockfd, uint8_t* data, uint64_t size, int timeout = 0);
+
+/**
  * Receive message via socket.
  */
-std::string recv(int sockfd, uint8_t* data);
+std::string recv(int sockfd, uint8_t* data, int timeout = 0);
 
 /**
  * Close connection.
@@ -73,7 +77,6 @@ std::string recv(int sockfd, uint8_t* data);
 void close(int sockfd);
 
 }  // namespace internal
-
 
 /**
  * Class to handle WebSocket connections.
@@ -96,7 +99,9 @@ class WebSocket {
     int port;
     internal::parse_url(url, &host, &path, &port);
 
-    ws->sockfd_ = internal::connect_form_hostname(host, port);
+    if ((ws->sockfd_ = internal::connect_from_hostname(host, port)) < 0) {
+      return nullptr;
+    }
     if (!internal::establish_connection(ws->sockfd_, host, path, port)) {
       return nullptr;
     }
@@ -107,7 +112,9 @@ class WebSocket {
     return internal::send(sockfd_, send_buf_.data(), message);
   }
 
-  std::string recv() { return internal::recv(sockfd_, recv_buf_.data()); }
+  std::string recv(int timeout = 0) {
+    return internal::recv(sockfd_, recv_buf_.data(), timeout);
+  }
 
   void close() { internal::close(sockfd_); }
 

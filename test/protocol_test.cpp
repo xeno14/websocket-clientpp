@@ -1,4 +1,4 @@
-#include "protocol.hpp"
+#include "../protocol.hpp"
 
 #include <gtest/gtest.h>
 #include <algorithm>

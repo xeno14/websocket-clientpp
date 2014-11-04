@@ -1,4 +1,4 @@
-#include "websocket-clientpp.hpp"
+#include "../websocket-clientpp.hpp"
 
 #include <gtest/gtest.h>
 #include <memory>
@@ -33,20 +33,20 @@ TEST(WebSocketClientppTest, parse_url) {
   EXPECT_EQ(80, port);
 }
 
-TEST(WebSocketClientppTest, connect_form_hostname) {
-  using websocket::internal::connect_form_hostname;
+TEST(WebSocketClientppTest, connect_from_hostname) {
+  using websocket::internal::connect_from_hostname;
 
   int sockfd;
 
-  sockfd = connect_form_hostname("echo.websocket.org", 80);
+  sockfd = connect_from_hostname("echo.websocket.org", 80);
   EXPECT_NE(-1, sockfd);
   ::close(sockfd);
 
-  // sockfd = connect_form_hostname("127.0.0.1", 10000);
+  // sockfd = connect_from_hostname("127.0.0.1", 10000);
   // EXPECT_NE(-1, sockfd);
   // ::close(sockfd);
 
-  sockfd = connect_form_hostname("thishostdoesnotexists", 80);
+  sockfd = connect_from_hostname("thishostdoesnotexists", 80);
   EXPECT_EQ(-2, sockfd);
   ::close(sockfd);
 }
@@ -55,6 +55,10 @@ TEST(WebSocketClientppTest, create_connection) {
   std::unique_ptr<websocket::WebSocket> ws(
       websocket::create_connection("ws://echo.websocket.org"));
   EXPECT_NE(nullptr, ws);
+
+  std::unique_ptr<websocket::WebSocket> ws_invalid(
+      websocket::create_connection("ws://echo.websocketaaaaaaaaa.org"));
+  EXPECT_EQ(nullptr, ws_invalid);
 }
 
 TEST(WebSocketClientppTest, send) {
@@ -71,4 +75,16 @@ TEST(WebSocketClientppTest, send_recv) {
       websocket::create_connection("ws://echo.websocket.org"));
   ws->send("hello");
   EXPECT_EQ("hello", ws->recv());
+}
+
+TEST(WebSocketClientppTest, send_timeout) {
+  std::unique_ptr<websocket::WebSocket> ws(
+      websocket::create_connection("ws://echo.websocket.org"));
+  ASSERT_NE(nullptr, ws);
+
+  ws->send("hello world");
+  EXPECT_EQ("hello world", ws->recv(1000));   // long enough
+
+  ws->send("hello world");
+  EXPECT_EQ("", ws->recv(1));                 // short enough
 }
