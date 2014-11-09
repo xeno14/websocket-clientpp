@@ -86,5 +86,17 @@ TEST(WebSocketClientppTest, send_timeout) {
   EXPECT_EQ("hello world", ws->recv(1000));   // long enough
 
   ws->send("hello world");
-  EXPECT_EQ("", ws->recv(1));                 // short enough
+  EXPECT_EQ("", ws->recv(1));                 // too short
+}
+
+TEST(WebSocketClientppTest, resize) {
+  std::unique_ptr<websocket::WebSocket> ws(
+      websocket::create_connection("ws://echo.websocket.org"));
+  ASSERT_NE(nullptr, ws);
+
+  std::string message(10000, 'a');
+  ws->send(message);
+  ws->recv();
+  EXPECT_EQ(10014, ws->send_buf_size());
+  EXPECT_EQ(10014, ws->recv_buf_size());
 }
