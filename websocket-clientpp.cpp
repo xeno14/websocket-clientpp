@@ -165,24 +165,32 @@ int recv_timeout(int sockfd, uint8_t* data, uint64_t size, int timeout) {
   return -1;  // TODO: throw??
 }
 
-std::string recv(int sockfd, uint8_t* data, int timeout) {
+std::string recv(int sockfd, std::vector<uint8_t>& data, int timeout) {
   Protocol protocol;
 
-  if (recv_timeout(sockfd, data, 2, timeout) == -1) {
+  // Receive FIN, RSV1, RSV2, RSV3, opcode
+  if (recv_timeout(sockfd, data.data(), 2, timeout) == -1) {
     return "";  // TODO: throw?
   }
-  protocol.decode_header(data);
+  protocol.decode_header(data.data());
 
-  if (recv_timeout(sockfd, data, protocol.expandable_length(), timeout) == -1) {
+  // Receive mask, payload length
+  if (recv_timeout(sockfd, data.data(), protocol.expandable_length(),
+                   timeout) == -1) {
     return "";
   }
-  protocol.decode_expandables(data);
+  protocol.decode_expandables(data.data());
 
-  if (recv_timeout(sockfd, data, protocol.length, timeout) == -1) {
+  if (data.size() < protocol.length) {
+    data.resize(Protocol::MAX_FRAMING_HEADER_LEN + protocol.length);
+  }
+
+  // Receive payload
+  if (recv_timeout(sockfd, data.data(), protocol.length, timeout) == -1) {
     return "";
   }
   std::string response(protocol.length, 0);
-  protocol.decode_payload(data, response.begin());
+  protocol.decode_payload(data.data(), response.begin());
 
   return response;
 }

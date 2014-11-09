@@ -67,7 +67,7 @@ int recv_timeout(int sockfd, uint8_t* data, uint64_t size, int timeout = 0);
 /**
  * Receive message via socket.
  */
-std::string recv(int sockfd, uint8_t* data, int timeout = 0);
+std::string recv(int sockfd, std::vector<uint8_t>& data, int timeout = 0);
 
 /**
  * Close connection.
@@ -89,7 +89,11 @@ void close(int sockfd);
 class WebSocket {
 
  public:
-  WebSocket() : send_buf_(1024), recv_buf_(1024) {}
+  static const std::size_t DEFAULT_SEND_BUF_SIZE = 1024;
+  static const std::size_t DEFAULT_RECV_BUF_SIZE = 1024;
+
+  WebSocket()
+      : send_buf_(DEFAULT_SEND_BUF_SIZE), recv_buf_(DEFAULT_RECV_BUF_SIZE) {}
   ~WebSocket() { close(); }
 
   static WebSocket* create_connection(const std::string& url) {
@@ -108,12 +112,20 @@ class WebSocket {
     return ws;
   }
 
+  std::size_t send_buf_size() const { return send_buf_.size(); }
+  std::size_t recv_buf_size() const { return recv_buf_.size(); }
+
   int send(const std::string& message) {
+    if (send_buf_.size() <
+        message.size() + internal::Protocol::MAX_FRAMING_HEADER_LEN) {
+      send_buf_.resize(message.size() +
+                       internal::Protocol::MAX_FRAMING_HEADER_LEN);
+    }
     return internal::send(sockfd_, send_buf_.data(), message);
   }
 
   std::string recv(int timeout = 0) {
-    return internal::recv(sockfd_, recv_buf_.data(), timeout);
+    return internal::recv(sockfd_, recv_buf_, timeout);
   }
 
   void close() { internal::close(sockfd_); }

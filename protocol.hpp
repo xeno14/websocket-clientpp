@@ -47,6 +47,8 @@ inline uint64_t decode_uint64(InputIterator first) {
  * +---------------------------------------------------------------+
  */
 struct Protocol {
+  static constexpr std::size_t MAX_FRAMING_HEADER_LEN = 14;
+    
   bool FIN;
   bool RSV1;
   bool RSV2;
