@@ -85,7 +85,11 @@ TEST(WebSocketClientppTest, send_timeout) {
   EXPECT_EQ("hello world", ws->recv(1000));  // long enough
 
   ws->send("hello world");
-  EXPECT_EQ("", ws->recv(1));  // too short
+  try {
+    ws->recv(1);
+  } catch (int e) {
+    EXPECT_EQ(-1, e);   // too short
+  }
 }
 
 TEST(WebSocketClientppTest, resize) {

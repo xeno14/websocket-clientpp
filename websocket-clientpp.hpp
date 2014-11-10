@@ -2,12 +2,15 @@
 
 #include "protocol.hpp"
 
+#include <exception>
 #include <functional>
 #include <memory>
 #include <string>
 #include <vector>
 
 namespace websocket {
+
+typedef std::exception error_t;
 
 namespace internal {
 
@@ -68,7 +71,8 @@ int recv_timeout(int sockfd, uint8_t* data, uint64_t size, int timeout = 0);
 /**
  * Receive message via socket.
  */
-std::string recv(int sockfd, std::vector<uint8_t>& data, int timeout = 0);
+std::string recv(int sockfd, std::vector<uint8_t>& data,
+                 int timeout = 0, Protocol* p = nullptr) ;
 
 /**
  * Close connection.
@@ -94,7 +98,9 @@ class WebSocket {
   static const std::size_t DEFAULT_RECV_BUF_SIZE = 1024;
 
   WebSocket()
-      : send_buf_(DEFAULT_SEND_BUF_SIZE), recv_buf_(DEFAULT_RECV_BUF_SIZE) {}
+      : send_buf_(DEFAULT_SEND_BUF_SIZE),
+        recv_buf_(DEFAULT_RECV_BUF_SIZE),
+        is_connected_(false) {}
   ~WebSocket() { close(); }
 
   static WebSocket* create_connection(const std::string& url) {
@@ -110,11 +116,13 @@ class WebSocket {
     if (!internal::establish_connection(ws->sockfd_, host, path, port)) {
       return nullptr;
     }
+    ws->is_connected_ = true;
     return ws;
   }
 
   std::size_t send_buf_size() const { return send_buf_.size(); }
   std::size_t recv_buf_size() const { return recv_buf_.size(); }
+  bool is_connected() const { return is_connected_; }
 
   int send(const std::string& message) {
     if (send_buf_.size() <
@@ -125,11 +133,14 @@ class WebSocket {
     return internal::send(sockfd_, send_buf_.data(), message);
   }
 
-  std::string recv(int timeout = 0) {
-    return internal::recv(sockfd_, recv_buf_, timeout);
+  std::string recv(int timeout = 0, internal::Protocol* p = nullptr) {
+    return internal::recv(sockfd_, recv_buf_, timeout, p);
   }
 
-  void close() { internal::close(sockfd_); }
+  void close() {
+    is_connected_ = false;
+    internal::close(sockfd_);
+  }
 
   int sockfd() const { return sockfd_; }
 
@@ -137,6 +148,7 @@ class WebSocket {
   int sockfd_;
   std::vector<uint8_t> send_buf_;
   std::vector<uint8_t> recv_buf_;
+  bool is_connected_;
 };
 
 /**
@@ -149,7 +161,11 @@ inline WebSocket* create_connection(const std::string& url) {
 class WebSocketApp {
 
  public:
-  WebSocketApp(const std::string& url) : url_(url) {}
+  WebSocketApp(const std::string& url) : url_(url) {
+    on_open_ = [](WebSocket*) {};
+    on_message_ = [](WebSocket*, std::string) {};
+    on_close_ = []() {};
+  }
   ~WebSocketApp() {}
   void run_forever();
 
@@ -161,6 +177,10 @@ class WebSocketApp {
   void on_open(F f) {
     on_open_ = f;
   }
+  template <class F>
+  void on_close(F f) {
+    on_close_ = f;
+  }
 
   void set_timeout(int t) { timeout_ = t; }
 
@@ -170,6 +190,8 @@ class WebSocketApp {
 
   std::function<void(WebSocket*)> on_open_;
   std::function<void(WebSocket*, std::string)> on_message_;
+  std::function<void(void)> on_close_;  // TODO: void(string)
+                                        // TODO: on_error
 };
 
 }  // namespace websocket
