@@ -199,4 +199,22 @@ void close(int s) { ::close(s); }
 
 }  // namespace internal
 
+void WebSocketApp::run_forever() {
+  std::unique_ptr<WebSocket> ws(WebSocket::create_connection(url_));
+
+  if (ws != nullptr) {
+    on_open_(ws.get());
+  }
+
+  // TODO: create thread
+  while (1) {
+    std::string msg = ws->recv(timeout_);
+
+    if (!msg.empty()) {
+      on_message_(ws.get(), msg);
+    }
+    break;
+  }
+}
+
 }  // namespace websocket

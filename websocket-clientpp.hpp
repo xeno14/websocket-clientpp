@@ -3,6 +3,7 @@
 #include "protocol.hpp"
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -144,5 +145,31 @@ class WebSocket {
 inline WebSocket* create_connection(const std::string& url) {
   return WebSocket::create_connection(url);
 }
+
+class WebSocketApp {
+
+ public:
+  WebSocketApp(const std::string& url) : url_(url) {}
+  ~WebSocketApp() {}
+  void run_forever();
+
+  template <class F>
+  void on_message(F f) {
+    on_message_ = f;
+  }
+  template <class F>
+  void on_open(F f) {
+    on_open_ = f;
+  }
+
+  void set_timeout(int t) { timeout_ = t; }
+
+ private:
+  int timeout_;
+  std::string url_;
+
+  std::function<void(WebSocket*)> on_open_;
+  std::function<void(WebSocket*, std::string)> on_message_;
+};
 
 }  // namespace websocket

@@ -3,7 +3,6 @@
 #include <gtest/gtest.h>
 #include <memory>
 
-
 TEST(WebSocketClientppTest, parse_url) {
   using websocket::internal::parse_url;
 
@@ -83,10 +82,10 @@ TEST(WebSocketClientppTest, send_timeout) {
   ASSERT_NE(nullptr, ws);
 
   ws->send("hello world");
-  EXPECT_EQ("hello world", ws->recv(1000));   // long enough
+  EXPECT_EQ("hello world", ws->recv(1000));  // long enough
 
   ws->send("hello world");
-  EXPECT_EQ("", ws->recv(1));                 // too short
+  EXPECT_EQ("", ws->recv(1));  // too short
 }
 
 TEST(WebSocketClientppTest, resize) {
@@ -99,4 +98,23 @@ TEST(WebSocketClientppTest, resize) {
   ws->recv();
   EXPECT_EQ(10014, ws->send_buf_size());
   EXPECT_EQ(10014, ws->recv_buf_size());
+}
+
+TEST(WebSocketClientppTest, callbacks) {
+  using websocket::WebSocket;
+  websocket::WebSocketApp app("ws://echo.websocket.org");
+  app.set_timeout(1000);
+  
+  bool open_called = false;
+
+  app.on_open([&open_called](WebSocket* ws) {
+    open_called = true;
+    ws->send("yeah");
+  });
+  app.on_message([](WebSocket* ws, std::string msg) {
+    EXPECT_EQ("yeah", msg);
+    ws->close();
+  });
+
+  app.run_forever();
 }
