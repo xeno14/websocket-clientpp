@@ -165,19 +165,20 @@ int recv_timeout(int sockfd, uint8_t* data, uint64_t size, int timeout) {
   return -1;  // TODO: throw??
 }
 
-std::string recv(int sockfd, std::vector<uint8_t>& data, int timeout) {
+std::string recv(int sockfd, std::vector<uint8_t>& data, int timeout,
+                 Protocol* p) {
   Protocol protocol;
 
   // Receive FIN, RSV1, RSV2, RSV3, opcode
   if (recv_timeout(sockfd, data.data(), 2, timeout) == -1) {
-    return "";  // TODO: throw?
+    throw - 1;
   }
   protocol.decode_header(data.data());
 
   // Receive mask, payload length
   if (recv_timeout(sockfd, data.data(), protocol.expandable_length(),
                    timeout) == -1) {
-    return "";
+    throw - 1;
   }
   protocol.decode_expandables(data.data());
 
@@ -192,11 +193,41 @@ std::string recv(int sockfd, std::vector<uint8_t>& data, int timeout) {
   std::string response(protocol.length, 0);
   protocol.decode_payload(data.data(), response.begin());
 
+  if (p != nullptr) *p = protocol;
+
   return response;
 }
 
 void close(int s) { ::close(s); }
 
 }  // namespace internal
+
+void WebSocketApp::run_forever() {
+  std::unique_ptr<WebSocket> ws(WebSocket::create_connection(url_));
+
+  if (ws != nullptr) {
+    on_open_(ws.get());
+  }
+
+  // TODO: create thread
+  // TODO: try ~ catch
+  try {
+    while (ws->is_connected()) {
+      internal::Protocol protocol;
+      std::string msg = ws->recv(timeout_, &protocol);
+
+      if (protocol.opcode == internal::Protocol::opcode_type::CLOSE) {
+        ws->close();
+      } else {
+        on_message_(ws.get(), msg);
+      }
+    }
+  }
+  catch (int e) {
+    // TODO: on_error
+    std::cerr << "Error code: " << e << std::endl;
+  }
+  on_close_();  // TODO: message
+}
 
 }  // namespace websocket
